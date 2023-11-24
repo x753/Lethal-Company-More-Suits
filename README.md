@@ -1,4 +1,4 @@
-# More Suits v1.2.0
+# More Suits v1.2.1
 ### Adds more suits to choose from, and allows you to customize them!
 
 ## Instructions
@@ -17,6 +17,8 @@ https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@14.
 Add a "PRICE" key to your advanced .json to put a suit in the store rotation. See ```Glow.json``` for an example of adding a suit with emission that must be purchased from the store.
 
 ## Changelog
+	- v1.2.1
+		- Fixed suits being in a different order on the rack for each player
 	- v1.2.0
 		- Added support for adding suits to the store rotation
 	- v1.1.0

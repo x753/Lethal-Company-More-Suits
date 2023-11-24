@@ -14,7 +14,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.2.0";
+        private const string modVersion = "1.2.1";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -62,7 +62,7 @@ namespace MoreSuits
                                     UnlockableItem newSuit;
                                     Material newMaterial;
 
-                                    if (Path.GetFileNameWithoutExtension(texturePath) == "Default")
+                                    if (Path.GetFileNameWithoutExtension(texturePath).ToLower() == "default")
                                     {
                                         newSuit = unlockableItem;
                                         newMaterial = newSuit.suitMaterial;
@@ -145,7 +145,7 @@ namespace MoreSuits
 
                                     newSuit.suitMaterial = newMaterial;
 
-                                    if (newSuit.unlockableName != "Default")
+                                    if (newSuit.unlockableName.ToLower() != "default")
                                     {
                                         __instance.unlockablesList.unlockables.Add(newSuit);
                                     }
@@ -161,6 +161,26 @@ namespace MoreSuits
                 {
                     Debug.Log("Something went wrong with More Suits! Error: " + ex);
                 }
+            }
+
+            [HarmonyPatch("PositionSuitsOnRack")]
+            [HarmonyPrefix]
+            static bool PositionSuitsOnRackPatch(ref StartOfRound __instance)
+            {
+                List<UnlockableSuit> suits = UnityEngine.Object.FindObjectsOfType<UnlockableSuit>().ToList<UnlockableSuit>();
+                suits = suits.OrderBy(suit => suit.syncedSuitID.Value).ToList();
+                int index = 0;
+                foreach (UnlockableSuit suit in suits)
+                {
+                    AutoParentToShip component = suit.gameObject.GetComponent<AutoParentToShip>();
+                    component.overrideOffset = true;
+                    component.positionOffset = new Vector3(-2.45f, 2.75f, -8.41f) + __instance.rightmostSuitPosition.forward * 0.18f * (float)index;
+                    component.rotationOffset = new Vector3(0f, 90f, 0f);
+
+                    index++;
+                }
+
+                return false; // don't run the original
             }
         }
 

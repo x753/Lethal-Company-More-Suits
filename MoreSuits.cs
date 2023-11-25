@@ -14,18 +14,16 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.2.1";
+        private const string modVersion = "1.3.1";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
         private static MoreSuitsMod Instance;
 
-        public static string SuitsFolder;
         public static bool SuitsAdded = false;
 
         private void Awake()
         {
-            SuitsFolder = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "suits");
 
             if (Instance == null)
             {
@@ -53,11 +51,45 @@ namespace MoreSuits
 
                             if (unlockableItem.suitMaterial != null && unlockableItem.alreadyUnlocked) // find the default suit to use as a base
                             {
-                                // Get all .png files in the same folder as the mod
-                                string[] pngFiles = Directory.GetFiles(SuitsFolder, "*.png");
+                                // Get all .png files from all folders named moresuits in the BepInEx/plugins folder
+                                List<string> suitsFolderPaths = Directory.GetDirectories(Paths.PluginPath, "moresuits", SearchOption.AllDirectories).ToList<string>();
+                                List<string> texturePaths = new List<string>();
+
+                                // Check through each moresuits folder for a text file called !less-suits.txt, which signals not to load the original suits that come with this mod
+                                foreach (string suitsFolderPath in suitsFolderPaths)
+                                {
+                                    string[] lessSuitsTextIndicator = Directory.GetFiles(suitsFolderPath, "!less-suits.txt");
+
+                                    if (lessSuitsTextIndicator.Length > 0)
+                                    {
+                                        foreach (string originalMoreSuitsFolder in suitsFolderPaths)
+                                        {
+                                            string[] moreSuitsTextIndicator = Directory.GetFiles(suitsFolderPath, "!more-suits.txt");
+
+                                            if (lessSuitsTextIndicator.Length > 0 && originalMoreSuitsFolder != suitsFolderPath) // make sure the user isn't being silly and including both text files
+                                            {
+                                                suitsFolderPaths.Remove(originalMoreSuitsFolder);
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+
+                                foreach (string suitsFolderPath in suitsFolderPaths)
+                                {
+                                    if (suitsFolderPath != "")
+                                    {
+                                        string[] pngFiles = Directory.GetFiles(suitsFolderPath, "*.png");
+
+                                        texturePaths.AddRange(pngFiles);
+                                    }
+                                }
+
+                                texturePaths.Sort();
 
                                 // Create new suits for each .png
-                                foreach (string texturePath in pngFiles)
+                                foreach (string texturePath in texturePaths)
                                 {
                                     UnlockableItem newSuit;
                                     Material newMaterial;
@@ -76,20 +108,19 @@ namespace MoreSuits
                                         newMaterial = Instantiate(newSuit.suitMaterial);
                                     }
 
-                                    string filePath = Path.Combine(SuitsFolder, texturePath);
-                                    byte[] fileData = File.ReadAllBytes(filePath);
+                                    byte[] fileData = File.ReadAllBytes(texturePath);
                                     Texture2D texture = new Texture2D(2, 2);
                                     texture.LoadImage(fileData);
 
                                     newMaterial.mainTexture = texture;
 
-                                    newSuit.unlockableName = Path.GetFileNameWithoutExtension(filePath);
+                                    newSuit.unlockableName = Path.GetFileNameWithoutExtension(texturePath);
 
                                     // Optional modification of other properties like normal maps, emission, etc
                                     // https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@14.0/manual/Lit-Shader.html
                                     try
                                     {
-                                        string advancedJsonPath = Path.Combine(SuitsFolder, "advanced", newSuit.unlockableName + ".json");
+                                        string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", newSuit.unlockableName + ".json");
                                         if (File.Exists(advancedJsonPath))
                                         {
                                             string[] lines = File.ReadAllLines(advancedJsonPath);
@@ -119,7 +150,7 @@ namespace MoreSuits
                                                     }
                                                     else if (valueData.Contains(".png"))
                                                     {
-                                                        string advancedTexturePath = Path.Combine(SuitsFolder, "advanced", valueData);
+                                                        string advancedTexturePath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", valueData);
                                                         byte[] advancedTextureData = File.ReadAllBytes(advancedTexturePath);
                                                         Texture2D advancedTexture = new Texture2D(2, 2);
                                                         advancedTexture.LoadImage(advancedTextureData);

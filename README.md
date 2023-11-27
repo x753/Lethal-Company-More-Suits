@@ -1,4 +1,4 @@
-# More Suits v1.3.1
+# More Suits v1.3.2
 ### Adds more suits to choose from, and allows you to customize them!
 
 ## Instructions
@@ -17,9 +17,11 @@ https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@14.
 Add a "PRICE" key to your advanced .json to put a suit in the store rotation. See ```Glow.json``` for an example of adding a suit with emission that must be purchased from the store.
 
 ## Making your own More Suits mod
-Upload your own package with a ```moresuits``` folder in it and add ```x753-More_Suits-1.3.0``` as a dependency, and this mod will automatically load your .png files as suits. If you don't want the suits that originally come with my mod, add a file called ```!less-suits.txt``` to your ```moresuits``` folder in your mod.
+Upload your own package with a ```moresuits``` folder in it (do not include the MoreSuits.dll file) and add ```x753-More_Suits-1.3.0``` as a dependency, and this mod will automatically load your .png files as suits. If you don't want the suits that originally come with my mod, add a file called ```!less-suits.txt``` to your ```moresuits``` folder in your mod, or adjust the config file ```BepInEx\config\x753.More_Suits.cfg```.
 
 ## Changelog
+	- v1.3.2
+		- Added a BepInEx config file so you can exclude certain suits from being loaded
 	- v1.3.0
 		- More Suits can now be used as a library for other suit mods
 	- v1.2.1

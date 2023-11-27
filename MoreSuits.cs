@@ -1,4 +1,5 @@
 ﻿using BepInEx;
+using BepInEx.Configuration;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
@@ -14,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.3.1";
+        private const string modVersion = "1.3.2";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -22,13 +23,16 @@ namespace MoreSuits
 
         public static bool SuitsAdded = false;
 
+        public static ConfigEntry<string> DisabledSuits;
+
         private void Awake()
         {
-
             if (Instance == null)
             {
                 Instance = this;
             }
+
+            DisabledSuits = Config.Bind("General", "Disabled Suit List", "UglySuit751.png,UglySuit752.png,UglySuit753.png", "Comma-separated list of suits that shouldn't be loaded");
 
             harmony.PatchAll();
             Logger.LogInfo($"Plugin {modName} is loaded!");
@@ -54,24 +58,16 @@ namespace MoreSuits
                                 // Get all .png files from all folders named moresuits in the BepInEx/plugins folder
                                 List<string> suitsFolderPaths = Directory.GetDirectories(Paths.PluginPath, "moresuits", SearchOption.AllDirectories).ToList<string>();
                                 List<string> texturePaths = new List<string>();
+                                List<string> disabledSuits = DisabledSuits.Value.ToLower().Replace(".png", "").Split(',').ToList();
+                                List<string> disabledDefaultSuits = new List<string>();
 
-                                // Check through each moresuits folder for a text file called !less-suits.txt, which signals not to load the original suits that come with this mod
+                                // Check through each moresuits folder for a text file called !less-suits.txt, which signals not to load any of the original suits that come with this mod
                                 foreach (string suitsFolderPath in suitsFolderPaths)
                                 {
-                                    string[] lessSuitsTextIndicator = Directory.GetFiles(suitsFolderPath, "!less-suits.txt");
-
-                                    if (lessSuitsTextIndicator.Length > 0)
+                                    if (File.Exists(Path.Combine(suitsFolderPath, "!less-suits.txt")))
                                     {
-                                        foreach (string originalMoreSuitsFolder in suitsFolderPaths)
-                                        {
-                                            string[] moreSuitsTextIndicator = Directory.GetFiles(suitsFolderPath, "!more-suits.txt");
-
-                                            if (lessSuitsTextIndicator.Length > 0 && originalMoreSuitsFolder != suitsFolderPath) // make sure the user isn't being silly and including both text files
-                                            {
-                                                suitsFolderPaths.Remove(originalMoreSuitsFolder);
-                                                break;
-                                            }
-                                        }
+                                        string[] defaultSuits = { "glow", "kirby", "knuckles", "luigi", "mario", "minion", "skeleton", "slayer", "smile" };
+                                        disabledDefaultSuits.AddRange(defaultSuits); // add every default suit in the mod to the disabled suits list
                                         break;
                                     }
                                 }
@@ -91,6 +87,11 @@ namespace MoreSuits
                                 // Create new suits for each .png
                                 foreach (string texturePath in texturePaths)
                                 {
+                                    // skip each suit that is in the disabled suits list
+                                    if (disabledSuits.Contains(Path.GetFileNameWithoutExtension(texturePath).ToLower())) { continue; }
+                                    string originalMoreSuitsPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                                    if (disabledDefaultSuits.Contains(Path.GetFileNameWithoutExtension(texturePath).ToLower()) && texturePath.Contains(originalMoreSuitsPath)) { continue; }
+
                                     UnlockableItem newSuit;
                                     Material newMaterial;
 

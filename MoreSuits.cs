@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.3.2";
+        private const string modVersion = "1.3.3";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -24,6 +24,7 @@ namespace MoreSuits
         public static bool SuitsAdded = false;
 
         public static ConfigEntry<string> DisabledSuits;
+        public static ConfigEntry<bool> LoadAllSuits;
 
         private void Awake()
         {
@@ -33,6 +34,7 @@ namespace MoreSuits
             }
 
             DisabledSuits = Config.Bind("General", "Disabled Suit List", "UglySuit751.png,UglySuit752.png,UglySuit753.png", "Comma-separated list of suits that shouldn't be loaded");
+            LoadAllSuits = Config.Bind("General", "Ignore !less-suits.txt", false, "If true, ignores the !less-suits.txt file and will attempt to load every suit, except those in the disabled list. This should be true if you're not worried about having too many suits.");
 
             harmony.PatchAll();
             Logger.LogInfo($"Plugin {modName} is loaded!");
@@ -62,13 +64,16 @@ namespace MoreSuits
                                 List<string> disabledDefaultSuits = new List<string>();
 
                                 // Check through each moresuits folder for a text file called !less-suits.txt, which signals not to load any of the original suits that come with this mod
-                                foreach (string suitsFolderPath in suitsFolderPaths)
+                                if (!LoadAllSuits.Value)
                                 {
-                                    if (File.Exists(Path.Combine(suitsFolderPath, "!less-suits.txt")))
+                                    foreach (string suitsFolderPath in suitsFolderPaths)
                                     {
-                                        string[] defaultSuits = { "glow", "kirby", "knuckles", "luigi", "mario", "minion", "skeleton", "slayer", "smile" };
-                                        disabledDefaultSuits.AddRange(defaultSuits); // add every default suit in the mod to the disabled suits list
-                                        break;
+                                        if (File.Exists(Path.Combine(suitsFolderPath, "!less-suits.txt")))
+                                        {
+                                            string[] defaultSuits = { "glow", "kirby", "knuckles", "luigi", "mario", "minion", "skeleton", "slayer", "smile" };
+                                            disabledDefaultSuits.AddRange(defaultSuits); // add every default suit in the mod to the disabled suits list
+                                            break;
+                                        }
                                     }
                                 }
 

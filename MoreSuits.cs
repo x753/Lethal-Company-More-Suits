@@ -57,7 +57,6 @@ namespace MoreSuits
                             {
                                 // Get all .png files from all folders named moresuits in the BepInEx/plugins folder
                                 List<string> suitsFolderPaths = Directory.GetDirectories(Paths.PluginPath, "moresuits", SearchOption.AllDirectories).ToList<string>();
-                                Dictionary<string, string> texturePaths = new Dictionary<string, string>();
                                 List<string> disabledSuits = DisabledSuits.Value.ToLower().Replace(".png", "").Split(',').ToList();
                                 List<string> disabledDefaultSuits = new List<string>();
 
@@ -72,35 +71,24 @@ namespace MoreSuits
                                     }
                                 }
 
-                                foreach (var suitsFolderPath in suitsFolderPaths)
-                                {
-                                    foreach (var filePath in Directory.GetFiles(suitsFolderPath, "*.png"))
-                                    {
-                                        var fileName = Path.GetFileNameWithoutExtension(filePath);
-                                        if (texturePaths.Keys.Contains(fileName))
-                                        {
-                                            var duplicates = texturePaths.Keys.Where(t => t == fileName);
-                                            fileName = $"{fileName}{duplicates.Count()}";
-                                        }
-                                        
-                                        texturePaths.Add(fileName, filePath);
-                                    }
-                                }
+                                List<(string, string)> texturePaths = (from suitsFolderPath in suitsFolderPaths
+                                    from pngFile in Directory.GetFiles(suitsFolderPath, "*.png")
+                                    select (Path.GetFileNameWithoutExtension(pngFile), pngFile)).ToList();
                                 
-                                texturePaths = texturePaths.OrderBy(t => t.Key).ToDictionary(t => t.Key, t => t.Value);
+                                texturePaths = texturePaths.OrderBy(t => t.Item1).ToList();
 
                                 // Create new suits for each .png
-                                foreach (KeyValuePair<string, string> texturePath in texturePaths)
+                                foreach ((string, string) texturePath in texturePaths)
                                 {
                                     // skip each suit that is in the disabled suits list
-                                    if (disabledSuits.Contains(texturePath.Key.ToLower())) { continue; }
+                                    if (disabledSuits.Contains(texturePath.Item1.ToLower())) { continue; }
                                     string originalMoreSuitsPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                                    if (disabledDefaultSuits.Contains(texturePath.Key.ToLower()) && texturePath.Value.Contains(originalMoreSuitsPath)) { continue; }
+                                    if (disabledDefaultSuits.Contains(texturePath.Item1.ToLower()) && texturePath.Item2.Contains(originalMoreSuitsPath)) { continue; }
 
                                     UnlockableItem newSuit;
                                     Material newMaterial;
 
-                                    if (texturePath.Key.ToLower() == "default")
+                                    if (texturePath.Item1.ToLower() == "default")
                                     {
                                         newSuit = unlockableItem;
                                         newMaterial = newSuit.suitMaterial;
@@ -114,19 +102,19 @@ namespace MoreSuits
                                         newMaterial = Instantiate(newSuit.suitMaterial);
                                     }
 
-                                    byte[] fileData = File.ReadAllBytes(texturePath.Value);
+                                    byte[] fileData = File.ReadAllBytes(texturePath.Item2);
                                     Texture2D texture = new Texture2D(2, 2);
                                     texture.LoadImage(fileData);
 
                                     newMaterial.mainTexture = texture;
 
-                                    newSuit.unlockableName = texturePath.Key;
+                                    newSuit.unlockableName = texturePath.Item1;
 
                                     // Optional modification of other properties like normal maps, emission, etc
                                     // https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@14.0/manual/Lit-Shader.html
                                     try
                                     {
-                                        string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath.Value), "advanced", newSuit.unlockableName + ".json");
+                                        string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath.Item2), "advanced", newSuit.unlockableName + ".json");
                                         if (File.Exists(advancedJsonPath))
                                         {
                                             string[] lines = File.ReadAllLines(advancedJsonPath);
@@ -156,7 +144,7 @@ namespace MoreSuits
                                                     }
                                                     else if (valueData.Contains(".png"))
                                                     {
-                                                        string advancedTexturePath = Path.Combine(Path.GetDirectoryName(texturePath.Value), "advanced", valueData);
+                                                        string advancedTexturePath = Path.Combine(Path.GetDirectoryName(texturePath.Item2), "advanced", valueData);
                                                         byte[] advancedTextureData = File.ReadAllBytes(advancedTexturePath);
                                                         Texture2D advancedTexture = new Texture2D(2, 2);
                                                         advancedTexture.LoadImage(advancedTextureData);

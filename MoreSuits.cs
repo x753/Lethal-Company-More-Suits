@@ -149,6 +149,23 @@ namespace MoreSuits
                                                     {
                                                         newMaterial.EnableKeyword(keyData);
                                                     }
+                                                    else if (valueData == "DKEYWORD")
+                                                    {
+                                                        newMaterial.DisableKeyword(keyData);
+                                                    }
+                                                    else if (valueData == "SHADERPASS")
+                                                    {
+                                                        newMaterial.SetShaderPassEnabled(keyData, true);
+                                                    }
+                                                    else if (valueData == "DSHADERPASS")
+                                                    {
+                                                        newMaterial.SetShaderPassEnabled(keyData, false);
+                                                    }
+                                                    else if (keyData == "SHADER")
+                                                    {
+                                                        Shader newShader = Shader.Find(valueData);
+                                                        newMaterial.shader = newShader;
+                                                    }
                                                     else if (valueData.Contains(".png"))
                                                     {
                                                         string advancedTexturePath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", valueData);

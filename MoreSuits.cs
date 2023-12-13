@@ -57,6 +57,7 @@ namespace MoreSuits
                             {
                                 // Get all .png files from all folders named moresuits in the BepInEx/plugins folder
                                 List<string> suitsFolderPaths = Directory.GetDirectories(Paths.PluginPath, "moresuits", SearchOption.AllDirectories).ToList<string>();
+                                Dictionary<string, string> texturePaths = new Dictionary<string, string>();
                                 List<string> disabledSuits = DisabledSuits.Value.ToLower().Replace(".png", "").Split(',').ToList();
                                 List<string> disabledDefaultSuits = new List<string>();
 
@@ -71,10 +72,20 @@ namespace MoreSuits
                                     }
                                 }
 
-                                Dictionary<string, string> texturePaths = suitsFolderPaths
-                                    .Where(suitsFolderPath => suitsFolderPath != "")
-                                    .Select(suitsFolderPath => Directory.GetFiles(suitsFolderPath, "*.png"))
-                                    .SelectMany(pngFiles => pngFiles).ToDictionary(Path.GetFileNameWithoutExtension);
+                                foreach (var suitsFolderPath in suitsFolderPaths)
+                                {
+                                    foreach (var filePath in Directory.GetFiles(suitsFolderPath, "*.png"))
+                                    {
+                                        var fileName = Path.GetFileNameWithoutExtension(filePath);
+                                        if (texturePaths.Keys.Contains(fileName))
+                                        {
+                                            var duplicates = texturePaths.Keys.Where(t => t == fileName);
+                                            fileName = $"{fileName}{duplicates.Count()}";
+                                        }
+                                        
+                                        texturePaths.Add(fileName, filePath);
+                                    }
+                                }
                                 
                                 texturePaths = texturePaths.OrderBy(t => t.Key).ToDictionary(t => t.Key, t => t.Value);
 

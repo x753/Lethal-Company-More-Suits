@@ -28,6 +28,8 @@ namespace MoreSuits
         public static bool MakeSuitsFitOnRack;
         public static int MaxSuits;
 
+        public static List<Shader> customShaders = new();
+
         private void Awake()
         {
             if (Instance == null)
@@ -70,6 +72,7 @@ namespace MoreSuits
                                 // Get all .png files from all folders named moresuits in the BepInEx/plugins folder
                                 List<string> suitsFolderPaths = Directory.GetDirectories(Paths.PluginPath, "moresuits", SearchOption.AllDirectories).ToList<string>();
                                 List<string> texturePaths = new List<string>();
+                                List<string> assetPaths = new List<string>();
                                 List<string> disabledSuits = DisabledSuits.ToLower().Replace(".png", "").Split(',').ToList();
                                 List<string> disabledDefaultSuits = new List<string>();
 
@@ -94,10 +97,29 @@ namespace MoreSuits
                                         string[] pngFiles = Directory.GetFiles(suitsFolderPath, "*.png");
 
                                         texturePaths.AddRange(pngFiles);
+
+                                        string[] bundleFiles = Directory.GetFiles(suitsFolderPath, "*.msb");
+
+                                        assetPaths.AddRange(bundleFiles);
                                     }
                                 }
 
+                                assetPaths.Sort();
                                 texturePaths.Sort();
+
+                                foreach (string assetPath in assetPaths)
+                                {
+                                    AssetBundle assetBundle = AssetBundle.LoadFromFile(assetPath);
+
+                                    if (assetBundle != null)
+                                    {
+                                        foreach (string assetName in assetBundle.GetAllAssetNames())
+                                        {
+                                            Shader shaderAsset = assetBundle.LoadAsset<Shader>(assetName);
+                                            customShaders.Add(shaderAsset);
+                                        }
+                                    }
+                                }
 
                                 // Create new suits for each .png
                                 foreach (string texturePath in texturePaths)
@@ -186,8 +208,22 @@ namespace MoreSuits
                                                     }
                                                     else if (keyData == "SHADER")
                                                     {
-                                                        Shader newShader = Shader.Find(valueData);
-                                                        newMaterial.shader = newShader;
+                                                        var foundCustomShader = false;
+                                                        foreach (Shader customShader in customShaders)
+                                                        {
+                                                            if (customShader.name == valueData)
+                                                            {
+                                                                foundCustomShader = true;
+                                                                newMaterial.shader = customShader;
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        if (!foundCustomShader)
+                                                        {
+                                                            Shader newShader = Shader.Find(valueData);
+                                                            newMaterial.shader = newShader;
+                                                        }
                                                     }
                                                     else if (float.TryParse(valueData, out float floatValue))
                                                     {

@@ -209,6 +209,11 @@ namespace MoreSuits
                                                     {
                                                         newMaterial.SetShaderPassEnabled(keyData, false);
                                                     }
+                                                    else if (keyData == "SHADER")
+                                                    {
+                                                        Shader newShader = Shader.Find(valueData);
+                                                        newMaterial.shader = newShader;
+                                                    }
                                                     else if (keyData == "MATERIAL")
                                                     {
                                                         foreach (Material material in customMaterials)

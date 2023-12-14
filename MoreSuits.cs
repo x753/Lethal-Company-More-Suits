@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.4.0";
+        private const string modVersion = "1.4.1";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -28,7 +28,7 @@ namespace MoreSuits
         public static bool MakeSuitsFitOnRack;
         public static int MaxSuits;
 
-        public static List<Material> customMaterials = new();
+        public static List<Material> customMaterials = new List<Material>();
 
         private void Awake()
         {
@@ -39,7 +39,7 @@ namespace MoreSuits
 
             DisabledSuits = Config.Bind("General", "Disabled Suit List", "UglySuit751.png,UglySuit752.png,UglySuit753.png", "Comma-separated list of suits that shouldn't be loaded").Value;
             LoadAllSuits = Config.Bind("General", "Ignore !less-suits.txt", false, "If true, ignores the !less-suits.txt file and will attempt to load every suit, except those in the disabled list. This should be true if you're not worried about having too many suits.").Value;
-            MakeSuitsFitOnRack = Config.Bind("General", "Make Suits Fit on Rack", true, "If true, squishes the suits together so they all fit on the rack.").Value;
+            MakeSuitsFitOnRack = Config.Bind("General", "Make Suits Fit on Rack", true, "If true, squishes the suits together so more can fit on the rack.").Value;
             MaxSuits = Config.Bind("General", "Max Suits", 100, "The maximum number of suits to load. If you have more, some will be ignored.").Value;
 
             harmony.PatchAll();
@@ -95,11 +95,9 @@ namespace MoreSuits
                                     if (suitsFolderPath != "")
                                     {
                                         string[] pngFiles = Directory.GetFiles(suitsFolderPath, "*.png");
-
-                                        texturePaths.AddRange(pngFiles);
-
                                         string[] bundleFiles = Directory.GetFiles(suitsFolderPath, "*.matbundle");
 
+                                        texturePaths.AddRange(pngFiles);
                                         assetPaths.AddRange(bundleFiles);
                                     }
                                 }
@@ -107,21 +105,26 @@ namespace MoreSuits
                                 assetPaths.Sort();
                                 texturePaths.Sort();
 
-                                foreach (string assetPath in assetPaths)
+                                try
                                 {
-                                    AssetBundle assetBundle = AssetBundle.LoadFromFile(assetPath);
-
-                                    if (assetBundle != null)
+                                    foreach (string assetPath in assetPaths)
                                     {
-                                        foreach (string assetName in assetBundle.GetAllAssetNames())
+                                        AssetBundle assetBundle = AssetBundle.LoadFromFile(assetPath);
+                                        UnityEngine.Object[] assets = assetBundle.LoadAllAssets();
+
+                                        foreach (UnityEngine.Object asset in assets)
                                         {
-                                            Material material = assetBundle.LoadAsset<Material>(assetName);
-                                            if (material != null)
+                                            if (asset is Material)
                                             {
+                                                Material material = (Material)asset;
                                                 customMaterials.Add(material);
                                             }
                                         }
                                     }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.Log("Something went wrong with More Suits! Could not load materials from asset bundle(s). Error: " + ex);
                                 }
 
                                 // Create new suits for each .png
@@ -269,6 +272,7 @@ namespace MoreSuits
                         dummySuit.hasBeenMoved = false;
                         dummySuit.placedPosition = Vector3.zero;
                         dummySuit.placedRotation = Vector3.zero;
+                        dummySuit.unlockableType = 753; // this unlockable type is not used
                         while (__instance.unlockablesList.unlockables.Count < originalUnlockablesCount + MaxSuits)
                         {
                             __instance.unlockablesList.unlockables.Add(dummySuit);

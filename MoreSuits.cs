@@ -102,8 +102,8 @@ namespace MoreSuits
                                     }
                                 }
 
-                                assetPaths.Sort();
-                                texturePaths.Sort();
+                                assetPaths = assetPaths.OrderBy(Path.GetFileNameWithoutExtension).ToList();
+                                texturePaths = texturePaths.OrderBy(Path.GetFileNameWithoutExtension).ToList();
 
                                 try
                                 {

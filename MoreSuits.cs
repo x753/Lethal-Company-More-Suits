@@ -1,4 +1,4 @@
-using BepInEx;
+﻿using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using System;
@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.3.2";
+        private const string modVersion = "1.4.1";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -23,7 +23,12 @@ namespace MoreSuits
 
         public static bool SuitsAdded = false;
 
-        public static ConfigEntry<string> DisabledSuits;
+        public static string DisabledSuits;
+        public static bool LoadAllSuits;
+        public static bool MakeSuitsFitOnRack;
+        public static int MaxSuits;
+
+        public static List<Material> customMaterials = new List<Material>();
 
         private void Awake()
         {
@@ -32,7 +37,10 @@ namespace MoreSuits
                 Instance = this;
             }
 
-            DisabledSuits = Config.Bind("General", "Disabled Suit List", "UglySuit751.png,UglySuit752.png,UglySuit753.png", "Comma-separated list of suits that shouldn't be loaded");
+            DisabledSuits = Config.Bind("General", "Disabled Suit List", "UglySuit751.png,UglySuit752.png,UglySuit753.png", "Comma-separated list of suits that shouldn't be loaded").Value;
+            LoadAllSuits = Config.Bind("General", "Ignore !less-suits.txt", false, "If true, ignores the !less-suits.txt file and will attempt to load every suit, except those in the disabled list. This should be true if you're not worried about having too many suits.").Value;
+            MakeSuitsFitOnRack = Config.Bind("General", "Make Suits Fit on Rack", true, "If true, squishes the suits together so more can fit on the rack.").Value;
+            MaxSuits = Config.Bind("General", "Max Suits", 100, "The maximum number of suits to load. If you have more, some will be ignored.").Value;
 
             harmony.PatchAll();
             Logger.LogInfo($"Plugin {modName} is loaded!");
@@ -49,72 +57,113 @@ namespace MoreSuits
                 {
                     if (!SuitsAdded) // we only need to add the new suits to the unlockables list once per game launch
                     {
+                        int originalUnlockablesCount = __instance.unlockablesList.unlockables.Count;
+                        UnlockableItem originalSuit = new UnlockableItem();
+
+                        int addedSuitCount = 0;
                         for (int i = 0; i < __instance.unlockablesList.unlockables.Count; i++)
                         {
                             UnlockableItem unlockableItem = __instance.unlockablesList.unlockables[i];
 
                             if (unlockableItem.suitMaterial != null && unlockableItem.alreadyUnlocked) // find the default suit to use as a base
                             {
+                                originalSuit = unlockableItem;
+
                                 // Get all .png files from all folders named moresuits in the BepInEx/plugins folder
                                 List<string> suitsFolderPaths = Directory.GetDirectories(Paths.PluginPath, "moresuits", SearchOption.AllDirectories).ToList<string>();
-                                List<string> disabledSuits = DisabledSuits.Value.ToLower().Replace(".png", "").Split(',').ToList();
+                                List<string> texturePaths = new List<string>();
+                                List<string> assetPaths = new List<string>();
+                                List<string> disabledSuits = DisabledSuits.ToLower().Replace(".png", "").Split(',').ToList();
                                 List<string> disabledDefaultSuits = new List<string>();
 
                                 // Check through each moresuits folder for a text file called !less-suits.txt, which signals not to load any of the original suits that come with this mod
-                                foreach (string suitsFolderPath in suitsFolderPaths)
+                                if (!LoadAllSuits)
                                 {
-                                    if (File.Exists(Path.Combine(suitsFolderPath, "!less-suits.txt")))
+                                    foreach (string suitsFolderPath in suitsFolderPaths)
                                     {
-                                        string[] defaultSuits = { "glow", "kirby", "knuckles", "luigi", "mario", "minion", "skeleton", "slayer", "smile" };
-                                        disabledDefaultSuits.AddRange(defaultSuits); // add every default suit in the mod to the disabled suits list
-                                        break;
+                                        if (File.Exists(Path.Combine(suitsFolderPath, "!less-suits.txt")))
+                                        {
+                                            string[] defaultSuits = { "glow", "kirby", "knuckles", "luigi", "mario", "minion", "skeleton", "slayer", "smile" };
+                                            disabledDefaultSuits.AddRange(defaultSuits); // add every default suit in the mod to the disabled suits list
+                                            break;
+                                        }
                                     }
                                 }
 
-                                List<(string, string)> texturePaths = (from suitsFolderPath in suitsFolderPaths
-                                    from pngFile in Directory.GetFiles(suitsFolderPath, "*.png")
-                                    select (Path.GetFileNameWithoutExtension(pngFile), pngFile)).ToList();
-                                
-                                texturePaths = texturePaths.OrderBy(t => t.Item1).ToList();
+                                foreach (string suitsFolderPath in suitsFolderPaths)
+                                {
+                                    if (suitsFolderPath != "")
+                                    {
+                                        string[] pngFiles = Directory.GetFiles(suitsFolderPath, "*.png");
+                                        string[] bundleFiles = Directory.GetFiles(suitsFolderPath, "*.matbundle");
+
+                                        texturePaths.AddRange(pngFiles);
+                                        assetPaths.AddRange(bundleFiles);
+                                    }
+                                }
+
+                                assetPaths.Sort();
+                                texturePaths.Sort();
+
+                                try
+                                {
+                                    foreach (string assetPath in assetPaths)
+                                    {
+                                        AssetBundle assetBundle = AssetBundle.LoadFromFile(assetPath);
+                                        UnityEngine.Object[] assets = assetBundle.LoadAllAssets();
+
+                                        foreach (UnityEngine.Object asset in assets)
+                                        {
+                                            if (asset is Material)
+                                            {
+                                                Material material = (Material)asset;
+                                                customMaterials.Add(material);
+                                            }
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.Log("Something went wrong with More Suits! Could not load materials from asset bundle(s). Error: " + ex);
+                                }
 
                                 // Create new suits for each .png
-                                foreach ((string, string) texturePath in texturePaths)
+                                foreach (string texturePath in texturePaths)
                                 {
                                     // skip each suit that is in the disabled suits list
-                                    if (disabledSuits.Contains(texturePath.Item1.ToLower())) { continue; }
+                                    if (disabledSuits.Contains(Path.GetFileNameWithoutExtension(texturePath).ToLower())) { continue; }
                                     string originalMoreSuitsPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                                    if (disabledDefaultSuits.Contains(texturePath.Item1.ToLower()) && texturePath.Item2.Contains(originalMoreSuitsPath)) { continue; }
+                                    if (disabledDefaultSuits.Contains(Path.GetFileNameWithoutExtension(texturePath).ToLower()) && texturePath.Contains(originalMoreSuitsPath)) { continue; }
 
                                     UnlockableItem newSuit;
                                     Material newMaterial;
 
-                                    if (texturePath.Item1.ToLower() == "default")
+                                    if (Path.GetFileNameWithoutExtension(texturePath).ToLower() == "default")
                                     {
-                                        newSuit = unlockableItem;
+                                        newSuit = originalSuit;
                                         newMaterial = newSuit.suitMaterial;
                                     }
                                     else
                                     {
                                         // Serialize and deserialize to create a deep copy of the original suit item
-                                        string json = JsonUtility.ToJson(unlockableItem);
-                                        newSuit = JsonUtility.FromJson<UnlockableItem>(json);
+                                        newSuit = JsonUtility.FromJson<UnlockableItem>(JsonUtility.ToJson(originalSuit));
 
                                         newMaterial = Instantiate(newSuit.suitMaterial);
                                     }
 
-                                    byte[] fileData = File.ReadAllBytes(texturePath.Item2);
+                                    byte[] fileData = File.ReadAllBytes(texturePath);
                                     Texture2D texture = new Texture2D(2, 2);
                                     texture.LoadImage(fileData);
 
                                     newMaterial.mainTexture = texture;
 
-                                    newSuit.unlockableName = texturePath.Item1;
+                                    newSuit.unlockableName = Path.GetFileNameWithoutExtension(texturePath);
 
                                     // Optional modification of other properties like normal maps, emission, etc
                                     // https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@14.0/manual/Lit-Shader.html
                                     try
                                     {
-                                        string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath.Item2), "advanced", newSuit.unlockableName + ".json");
+                                        string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", newSuit.unlockableName + ".json");
                                         if (File.Exists(advancedJsonPath))
                                         {
                                             string[] lines = File.ReadAllLines(advancedJsonPath);
@@ -127,11 +176,20 @@ namespace MoreSuits
                                                     string keyData = keyValue[0].Trim('"', ' ', ',');
                                                     string valueData = keyValue[1].Trim('"', ' ', ',');
 
-                                                    if (keyData == "PRICE" && int.TryParse(valueData, out int intValue)) // If the advanced json has a price, set it up so it rotates into the shop
+                                                    if (valueData.Contains(".png"))
+                                                    {
+                                                        string advancedTexturePath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", valueData);
+                                                        byte[] advancedTextureData = File.ReadAllBytes(advancedTexturePath);
+                                                        Texture2D advancedTexture = new Texture2D(2, 2);
+                                                        advancedTexture.LoadImage(advancedTextureData);
+
+                                                        newMaterial.SetTexture(keyData, advancedTexture);
+                                                    }
+                                                    else if (keyData == "PRICE" && int.TryParse(valueData, out int intValue)) // If the advanced json has a price, set it up so it rotates into the shop
                                                     {
                                                         try
                                                         {
-                                                            AddToRotatingShop(newSuit, intValue, __instance.unlockablesList.unlockables.Count);
+                                                            newSuit = AddToRotatingShop(newSuit, intValue, __instance.unlockablesList.unlockables.Count);
                                                         }
                                                         catch (Exception ex)
                                                         {
@@ -142,14 +200,34 @@ namespace MoreSuits
                                                     {
                                                         newMaterial.EnableKeyword(keyData);
                                                     }
-                                                    else if (valueData.Contains(".png"))
+                                                    else if (valueData == "DISABLEKEYWORD")
                                                     {
-                                                        string advancedTexturePath = Path.Combine(Path.GetDirectoryName(texturePath.Item2), "advanced", valueData);
-                                                        byte[] advancedTextureData = File.ReadAllBytes(advancedTexturePath);
-                                                        Texture2D advancedTexture = new Texture2D(2, 2);
-                                                        advancedTexture.LoadImage(advancedTextureData);
-
-                                                        newMaterial.SetTexture(keyData, advancedTexture);
+                                                        newMaterial.DisableKeyword(keyData);
+                                                    }
+                                                    else if (valueData == "SHADERPASS")
+                                                    {
+                                                        newMaterial.SetShaderPassEnabled(keyData, true);
+                                                    }
+                                                    else if (valueData == "DISABLESHADERPASS")
+                                                    {
+                                                        newMaterial.SetShaderPassEnabled(keyData, false);
+                                                    }
+                                                    else if (keyData == "SHADER")
+                                                    {
+                                                        Shader newShader = Shader.Find(valueData);
+                                                        newMaterial.shader = newShader;
+                                                    }
+                                                    else if (keyData == "MATERIAL")
+                                                    {
+                                                        foreach (Material material in customMaterials)
+                                                        {
+                                                            if (material.name == valueData)
+                                                            {
+                                                                newMaterial = Instantiate(material);
+                                                                newMaterial.mainTexture = texture;
+                                                                break;
+                                                            }
+                                                        }
                                                     }
                                                     else if (float.TryParse(valueData, out float floatValue))
                                                     {
@@ -172,13 +250,32 @@ namespace MoreSuits
 
                                     if (newSuit.unlockableName.ToLower() != "default")
                                     {
-                                        __instance.unlockablesList.unlockables.Add(newSuit);
+                                        if (addedSuitCount == MaxSuits)
+                                        {
+                                            Debug.Log("Attempted to add a suit, but you've already reached the max number of suits! Modify the config if you want more.");
+                                        }
+                                        else
+                                        {
+                                            __instance.unlockablesList.unlockables.Add(newSuit);
+                                            addedSuitCount++;
+                                        }
                                     }
                                 }
 
                                 SuitsAdded = true;
-                                return;
+                                break;
                             }
+                        }
+
+                        UnlockableItem dummySuit = JsonUtility.FromJson<UnlockableItem>(JsonUtility.ToJson(originalSuit));
+                        dummySuit.alreadyUnlocked = false;
+                        dummySuit.hasBeenMoved = false;
+                        dummySuit.placedPosition = Vector3.zero;
+                        dummySuit.placedRotation = Vector3.zero;
+                        dummySuit.unlockableType = 753; // this unlockable type is not used
+                        while (__instance.unlockablesList.unlockables.Count < originalUnlockablesCount + MaxSuits)
+                        {
+                            __instance.unlockablesList.unlockables.Add(dummySuit);
                         }
                     }
                 }
@@ -186,6 +283,7 @@ namespace MoreSuits
                 {
                     Debug.Log("Something went wrong with More Suits! Error: " + ex);
                 }
+                
             }
 
             [HarmonyPatch("PositionSuitsOnRack")]
@@ -199,7 +297,14 @@ namespace MoreSuits
                 {
                     AutoParentToShip component = suit.gameObject.GetComponent<AutoParentToShip>();
                     component.overrideOffset = true;
-                    component.positionOffset = new Vector3(-2.45f, 2.75f, -8.41f) + __instance.rightmostSuitPosition.forward * 0.18f * (float)index;
+
+                    float offsetModifier = 0.18f;
+                    if (MakeSuitsFitOnRack && suits.Count > 13)
+                    {
+                        offsetModifier = offsetModifier / (Math.Min(suits.Count, 20) / 12f); // squish the suits together to make them all fit
+                    }
+
+                    component.positionOffset = new Vector3(-2.45f, 2.75f, -8.41f) + __instance.rightmostSuitPosition.forward * offsetModifier * (float)index;
                     component.rotationOffset = new Vector3(0f, 90f, 0f);
 
                     index++;
@@ -211,7 +316,7 @@ namespace MoreSuits
 
         private static TerminalNode cancelPurchase;
         private static TerminalKeyword buyKeyword;
-        private static void AddToRotatingShop(UnlockableItem newSuit, int price, int unlockableID)
+        private static UnlockableItem AddToRotatingShop(UnlockableItem newSuit, int price, int unlockableID)
         {
             Terminal terminal = UnityEngine.Object.FindObjectOfType<Terminal>();
             for (int i = 0; i < terminal.terminalNodes.allKeywords.Length; i++)
@@ -224,6 +329,9 @@ namespace MoreSuits
             }
 
             newSuit.alreadyUnlocked = false;
+            newSuit.hasBeenMoved = false;
+            newSuit.placedPosition = Vector3.zero;
+            newSuit.placedRotation = Vector3.zero;
 
             newSuit.shopSelectionNode = ScriptableObject.CreateInstance<TerminalNode>();
             newSuit.shopSelectionNode.name = newSuit.unlockableName + "SuitBuy1";
@@ -281,6 +389,8 @@ namespace MoreSuits
             allKeywordsList.Add(confirm.noun);
             allKeywordsList.Add(deny.noun);
             terminal.terminalNodes.allKeywords = allKeywordsList.ToArray();
+
+            return newSuit;
         }
 
         public static bool TryParseVector4(string input, out Vector4 vector)

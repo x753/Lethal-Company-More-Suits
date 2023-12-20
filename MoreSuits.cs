@@ -1,12 +1,14 @@
 ﻿using BepInEx;
-using BepInEx.Configuration;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace MoreSuits
 {
@@ -14,8 +16,10 @@ namespace MoreSuits
     public class MoreSuitsMod : BaseUnityPlugin
     {
         private const string modGUID = "x753.More_Suits";
-        private const string modName = "More Suits";
-        private const string modVersion = "1.4.1";
+        internal const string modName = "More Suits";
+        internal const string modVersion = "1.4.1";
+
+        private const int SUITS_PER_RACK = 13;
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -27,8 +31,21 @@ namespace MoreSuits
         public static bool LoadAllSuits;
         public static bool MakeSuitsFitOnRack;
         public static int MaxSuits;
+        public static int CurrentPage;
 
         public static List<Material> customMaterials = new List<Material>();
+
+        private static bool usePageButtons;
+        private static GameObject PageButton;
+        private static GameObject PageText;
+
+        private static TMP_FontAsset StolenFont;
+        private static Sprite StolenHandIcon;
+        private static int InteractLayer;
+        private static GameObject CurrentPageTextObject;
+        private static TMP_Text CurrentPageText;
+        private static List<UnlockableSuit> CachedSuits = new List<UnlockableSuit>();
+        private static List<UnlockableSuit[]> SuitsPages = new List<UnlockableSuit[]>();
 
         private void Awake()
         {
@@ -41,14 +58,97 @@ namespace MoreSuits
             LoadAllSuits = Config.Bind("General", "Ignore !less-suits.txt", false, "If true, ignores the !less-suits.txt file and will attempt to load every suit, except those in the disabled list. This should be true if you're not worried about having too many suits.").Value;
             MakeSuitsFitOnRack = Config.Bind("General", "Make Suits Fit on Rack", true, "If true, squishes the suits together so more can fit on the rack.").Value;
             MaxSuits = Config.Bind("General", "Max Suits", 100, "The maximum number of suits to load. If you have more, some will be ignored.").Value;
-
+            
+            Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream("MoreSuits.moresuits");
+            if (s != null)
+            {
+                AssetBundle assetBundle = AssetBundle.LoadFromStream(s);
+                if (assetBundle != null)
+                {
+                    Object[] objects = assetBundle.LoadAllAssets<Object>();
+                    PageButton = objects.First(x => x.name == "PageButton") as GameObject;
+                    PageText = objects.First(x => x.name == "PageText") as GameObject;
+                    usePageButtons = true;
+                }
+                else
+                    Logger.LogWarning("Failed to load PageButton Asset! Page buttons will not appear.");
+            }
+            else
+                Logger.LogWarning("Failed to load Embedded AssetBundle! Page buttons will not appear.");
+            
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            
             harmony.PatchAll();
             Logger.LogInfo($"Plugin {modName} is loaded!");
+        }
+
+        private void Update()
+        {
+            if(!usePageButtons) return;
+            bool needsRefresh = false;
+            CachedSuits.ForEach(x =>
+            {
+                if(x != null && x.gameObject != null) return;
+                needsRefresh = true;
+            });
+            if(needsRefresh) HardReset(StartOfRound.Instance);
+            if(CurrentPageTextObject == null || CurrentPageText == null) return;
+            CurrentPageText.text = $"Page {CurrentPage + 1} of {SuitsPages.Count}";
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if(!usePageButtons || scene.name != "SampleSceneRelay") return;
+            GameObject[] rootGameObjects = SceneManager.GetActiveScene().GetRootGameObjects();
+            // Steal Font
+            GameObject sys = rootGameObjects.First(x => x.name == "Systems");
+            StolenFont = sys.transform.Find("UI/Canvas/EndgameStats/Text/HeaderText").GetComponent<TextMeshProUGUI>()
+                .font;
+            // Steal Icon
+            GameObject env = rootGameObjects.First(x => x.name == "Environment");
+            Transform ts = env.transform.Find("HangarShip/Terminal/TerminalTrigger/TerminalScript");
+            StolenHandIcon = ts.GetComponent<InteractTrigger>().hoverIcon;
+            InteractLayer = ts.gameObject.layer;
+            Transform rightRack = GetFarRightRack();
+            // Clone Button for Right
+            GameObject rightPageButton = Instantiate(PageButton, rightRack, true);
+            rightPageButton.name = "NextPageButton";
+            // Clone Button for Left
+            GameObject leftPageButton = Instantiate(PageButton, rightRack, true);
+            leftPageButton.name = "PreviousPageButton";
+            // Create Interactable and Register
+            CreateAndRegisterInteract(rightPageButton, "Next", () =>
+            {
+                CurrentPage += 1;
+                RenderPage();
+            });
+            CreateAndRegisterInteract(leftPageButton, "Previous", () =>
+            {
+                CurrentPage -= 1;
+                RenderPage();
+            });
+            // Position
+            rightPageButton.transform.localPosition = new Vector3(0, -0.5f, -0.6f);
+            leftPageButton.transform.localPosition = new Vector3(0, -0.5f, 2.6f);
+            // Text
+            TMP_Text leftPageText = leftPageButton.transform.GetChild(0).GetComponent<TMP_Text>();
+            TMP_Text rightPageText = leftPageButton.transform.GetChild(0).GetComponent<TMP_Text>();
+            leftPageText.text = "<";
+            leftPageText.font = StolenFont;
+            rightPageText.font = StolenFont;
+            // Label
+            GameObject pageText = Instantiate(PageText, rightRack, true);
+            pageText.name = "PageText";
+            pageText.transform.localPosition = new Vector3(0, 0.4f, 1);
+            CurrentPageTextObject = pageText;
+            CurrentPageText = pageText.GetComponent<TMP_Text>();
+            CurrentPageText.font = StolenFont;
         }
 
         [HarmonyPatch(typeof(StartOfRound))]
         internal class StartOfRoundPatch
         {
+            
             [HarmonyPatch("Start")]
             [HarmonyPrefix]
             static void StartPatch(ref StartOfRound __instance)
@@ -288,27 +388,50 @@ namespace MoreSuits
 
             [HarmonyPatch("PositionSuitsOnRack")]
             [HarmonyPrefix]
-            static bool PositionSuitsOnRackPatch(ref StartOfRound __instance)
+            internal static bool PositionSuitsOnRackPatch(ref StartOfRound __instance)
             {
-                List<UnlockableSuit> suits = UnityEngine.Object.FindObjectsOfType<UnlockableSuit>().ToList<UnlockableSuit>();
-                suits = suits.OrderBy(suit => suit.syncedSuitID.Value).ToList();
+                Transform rightMost;
+                if (__instance != null)
+                    rightMost = __instance.rightmostSuitPosition;
+                else
+                    rightMost = GetFarRightRack();
+                RefreshSuits();
                 int index = 0;
-                foreach (UnlockableSuit suit in suits)
+                int offset = 0;
+                foreach (UnlockableSuit suit in CachedSuits)
                 {
                     AutoParentToShip component = suit.gameObject.GetComponent<AutoParentToShip>();
                     component.overrideOffset = true;
 
-                    float offsetModifier = 0.18f;
-                    if (MakeSuitsFitOnRack && suits.Count > 13)
+                    if (usePageButtons && offset > SUITS_PER_RACK - 1)
+                        offset = 0;
+
+                    if(usePageButtons)
                     {
-                        offsetModifier = offsetModifier / (Math.Min(suits.Count, 20) / 12f); // squish the suits together to make them all fit
+                        component.positionOffset =
+                            new Vector3(-2.45f, 2.75f, -8.41f) + rightMost.forward * 0.18f * offset;
+                        component.rotationOffset = new Vector3(0f, 90f, 0f);
+                    }
+                    else
+                    {
+                        float offsetModifier = 0.18f;
+                        if (MakeSuitsFitOnRack && CachedSuits.Count > 13)
+                        {
+                            offsetModifier = offsetModifier / (Math.Min(CachedSuits.Count, 20) / 12f); // squish the suits together to make them all fit
+                        }
+
+                        component.positionOffset = new Vector3(-2.45f, 2.75f, -8.41f) + __instance.rightmostSuitPosition.forward * offsetModifier * (float)index;
+                        component.rotationOffset = new Vector3(0f, 90f, 0f);
                     }
 
-                    component.positionOffset = new Vector3(-2.45f, 2.75f, -8.41f) + __instance.rightmostSuitPosition.forward * offsetModifier * (float)index;
-                    component.rotationOffset = new Vector3(0f, 90f, 0f);
-
+                    if (usePageButtons && index > SUITS_PER_RACK - 1)
+                        suit.gameObject.SetActive(false);
+                    
                     index++;
+                    offset++;
                 }
+                
+                FillPages();
 
                 return false; // don't run the original
             }
@@ -412,6 +535,104 @@ namespace MoreSuits
             }
 
             return false;
+        }
+
+        private static void RefreshSuits()
+        {
+            CachedSuits = Combine(CachedSuits, FindObjectsOfType<UnlockableSuit>().ToList());
+            // Remove any Deleted Suits
+            CachedSuits = CachedSuits.Where(x => x != null && x.gameObject != null).ToList();
+            CachedSuits = CachedSuits.OrderBy(suit => suit.syncedSuitID.Value).ToList();
+        }
+
+        private static List<T> Combine<T>(List<T> a, List<T> b)
+        {
+            List<T> newList = new List<T>(a);
+            foreach (T t in b)
+            {
+                if(!newList.Contains(t))
+                    newList.Add(t);
+            }
+            return newList;
+        }
+
+        private static void FillPages()
+        {
+            if(!usePageButtons) return;
+            SuitsPages.Clear();
+            List<UnlockableSuit> currentPage = new List<UnlockableSuit>();
+            int pageLimiter = 0;
+            foreach (UnlockableSuit unlockableSuit in CachedSuits)
+            {
+                if (pageLimiter > SUITS_PER_RACK - 1)
+                {
+                    SuitsPages.Add(currentPage.ToArray());
+                    currentPage.Clear();
+                    pageLimiter = 0;
+                }
+                currentPage.Add(unlockableSuit);
+                pageLimiter++;
+            }
+            if(currentPage.Count > 0)
+                SuitsPages.Add(currentPage.ToArray());
+            RenderPage();
+        }
+        
+        private static Transform GetFarRightRack()
+        {
+            GameObject env = SceneManager.GetActiveScene().GetRootGameObjects().First(x => x.name == "Environment");
+            return env.transform.Find("HangarShip/RightmostSuitPlacement");
+        }
+
+        private static void CreateAndRegisterInteract(GameObject gameObject, string dir, Action onInteract)
+        {
+            gameObject.GetComponent<BoxCollider>().tag = "InteractTrigger";
+            gameObject.tag = "InteractTrigger";
+            gameObject.layer = InteractLayer;
+            InteractTrigger interactTrigger = gameObject.AddComponent<InteractTrigger>();
+            if(interactTrigger.onInteract == null)
+                interactTrigger.onInteract = new InteractEvent();
+            interactTrigger.onInteract.AddListener(playerController =>
+            {
+                if(playerController.NetworkManager.LocalClientId != playerController.playerClientId) return;
+                onInteract.Invoke();
+            });
+            interactTrigger.hoverTip = $"{dir} Page";
+            interactTrigger.hoverIcon = StolenHandIcon;
+            interactTrigger.twoHandedItemAllowed = true;
+            interactTrigger.interactCooldown = false;
+        }
+
+        private static void RenderPage()
+        {
+            if (CurrentPage < 0)
+                CurrentPage = SuitsPages.Count - 1;
+            if (CurrentPage > SuitsPages.Count - 1)
+                CurrentPage = 0;
+            SuitsPages.ForEach(x =>
+            {
+                foreach (UnlockableSuit unlockableSuit in x)
+                    unlockableSuit.gameObject.SetActive(false);
+            });
+            foreach (UnlockableSuit unlockableSuit in SuitsPages[CurrentPage])
+                unlockableSuit.gameObject.SetActive(true);
+        }
+
+        private static void HardReset(StartOfRound instance)
+        {
+            if (instance == null)
+            {
+                // Probably hit Quit
+                CachedSuits.Clear();
+                SuitsPages.Clear();
+                CurrentPage = 0;
+                return;
+            }
+            SuitsPages.Clear();
+            RefreshSuits();
+            StartOfRoundPatch.PositionSuitsOnRackPatch(ref instance);
+            CurrentPage = 0;
+            RenderPage();
         }
     }
 }

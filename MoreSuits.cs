@@ -1,12 +1,13 @@
 ﻿using BepInEx;
-using BepInEx.Configuration;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using MoreSuits.SuitSorters;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace MoreSuits
 {
@@ -14,8 +15,10 @@ namespace MoreSuits
     public class MoreSuitsMod : BaseUnityPlugin
     {
         private const string modGUID = "x753.More_Suits";
-        private const string modName = "More Suits";
-        private const string modVersion = "1.4.1";
+        internal const string modName = "More Suits";
+        internal const string modVersion = "1.4.1";
+
+        public const int SUITS_PER_RACK = 13;
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -27,8 +30,12 @@ namespace MoreSuits
         public static bool LoadAllSuits;
         public static bool MakeSuitsFitOnRack;
         public static int MaxSuits;
+        internal static string SelectedSorter;
 
         public static List<Material> customMaterials = new List<Material>();
+        public static List<UnlockableSuit> CachedSuits = new List<UnlockableSuit>();
+
+        internal static None _none = new None();
 
         private void Awake()
         {
@@ -41,14 +48,31 @@ namespace MoreSuits
             LoadAllSuits = Config.Bind("General", "Ignore !less-suits.txt", false, "If true, ignores the !less-suits.txt file and will attempt to load every suit, except those in the disabled list. This should be true if you're not worried about having too many suits.").Value;
             MakeSuitsFitOnRack = Config.Bind("General", "Make Suits Fit on Rack", true, "If true, squishes the suits together so more can fit on the rack.").Value;
             MaxSuits = Config.Bind("General", "Max Suits", 100, "The maximum number of suits to load. If you have more, some will be ignored.").Value;
+            SelectedSorter = Config.Bind("General", "Selected Sorter", "none", "The sorting method to use. (none) for nothing").Value;
 
             harmony.PatchAll();
+
+            SuitSorter.rootLogger = Logger;
+            SuitSorter.RegisterSorter("none", _none, true);
+            SuitSorter.CurrentSorter = _none;
+            SuitSorter.CurrentSorter = SuitSorter.PossibleSorters.TryGetValue(SelectedSorter, out SuitSorter sorter)
+                ? sorter
+                : _none;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            
             Logger.LogInfo($"Plugin {modName} is loaded!");
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if(scene.name != "SampleSceneRelay") return;
+            SuitSorter.CurrentSorter.OnGameSceneLoaded(StartOfRound.Instance);
         }
 
         [HarmonyPatch(typeof(StartOfRound))]
         internal class StartOfRoundPatch
         {
+            
             [HarmonyPatch("Start")]
             [HarmonyPrefix]
             static void StartPatch(ref StartOfRound __instance)
@@ -288,28 +312,10 @@ namespace MoreSuits
 
             [HarmonyPatch("PositionSuitsOnRack")]
             [HarmonyPrefix]
-            static bool PositionSuitsOnRackPatch(ref StartOfRound __instance)
+            internal static bool PositionSuitsOnRackPatch(ref StartOfRound __instance)
             {
-                List<UnlockableSuit> suits = UnityEngine.Object.FindObjectsOfType<UnlockableSuit>().ToList<UnlockableSuit>();
-                suits = suits.OrderBy(suit => suit.syncedSuitID.Value).ToList();
-                int index = 0;
-                foreach (UnlockableSuit suit in suits)
-                {
-                    AutoParentToShip component = suit.gameObject.GetComponent<AutoParentToShip>();
-                    component.overrideOffset = true;
-
-                    float offsetModifier = 0.18f;
-                    if (MakeSuitsFitOnRack && suits.Count > 13)
-                    {
-                        offsetModifier = offsetModifier / (Math.Min(suits.Count, 20) / 12f); // squish the suits together to make them all fit
-                    }
-
-                    component.positionOffset = new Vector3(-2.45f, 2.75f, -8.41f) + __instance.rightmostSuitPosition.forward * offsetModifier * (float)index;
-                    component.rotationOffset = new Vector3(0f, 90f, 0f);
-
-                    index++;
-                }
-
+                RefreshSuits();
+                SuitSorter.CurrentSorter.SortSuitRack(__instance, CachedSuits.ToArray());
                 return false; // don't run the original
             }
         }
@@ -412,6 +418,25 @@ namespace MoreSuits
             }
 
             return false;
+        }
+        
+        private static List<T> Combine<T>(List<T> a, List<T> b)
+        {
+            List<T> newList = new List<T>(a);
+            foreach (T t in b)
+            {
+                if(!newList.Contains(t))
+                    newList.Add(t);
+            }
+            return newList;
+        }
+
+        public static void RefreshSuits()
+        {
+            CachedSuits = Combine(CachedSuits, FindObjectsOfType<UnlockableSuit>().ToList());
+            // Remove any Deleted Suits
+            CachedSuits = CachedSuits.Where(x => x != null && x.gameObject != null).ToList();
+            CachedSuits = CachedSuits.OrderBy(suit => suit.syncedSuitID.Value).ToList();
         }
     }
 }

@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.4.1";
+        private const string modVersion = "1.4.2";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -26,6 +26,7 @@ namespace MoreSuits
         public static string DisabledSuits;
         public static bool LoadAllSuits;
         public static bool MakeSuitsFitOnRack;
+        public static bool UnlockAll;
         public static int MaxSuits;
 
         public static List<Material> customMaterials = new List<Material>();
@@ -40,6 +41,7 @@ namespace MoreSuits
             DisabledSuits = Config.Bind("General", "Disabled Suit List", "UglySuit751.png,UglySuit752.png,UglySuit753.png", "Comma-separated list of suits that shouldn't be loaded").Value;
             LoadAllSuits = Config.Bind("General", "Ignore !less-suits.txt", false, "If true, ignores the !less-suits.txt file and will attempt to load every suit, except those in the disabled list. This should be true if you're not worried about having too many suits.").Value;
             MakeSuitsFitOnRack = Config.Bind("General", "Make Suits Fit on Rack", true, "If true, squishes the suits together so more can fit on the rack.").Value;
+            UnlockAll = Config.Bind("General", "Unlock All Suits", false, "If true, unlocks all custom suits that would normally be sold in the shop.").Value;
             MaxSuits = Config.Bind("General", "Max Suits", 100, "The maximum number of suits to load. If you have more, some will be ignored.").Value;
 
             harmony.PatchAll();
@@ -102,8 +104,8 @@ namespace MoreSuits
                                     }
                                 }
 
-                                assetPaths.Sort();
-                                texturePaths.Sort();
+                                assetPaths = assetPaths.OrderBy(Path.GetFileNameWithoutExtension).ThenBy(p => p).ToList();
+                                texturePaths = texturePaths.OrderBy(Path.GetFileNameWithoutExtension).ThenBy(p => p).ToList();
 
                                 try
                                 {
@@ -155,6 +157,8 @@ namespace MoreSuits
                                     Texture2D texture = new Texture2D(2, 2);
                                     texture.LoadImage(fileData);
 
+                                    texture.Apply(true, true);
+
                                     newMaterial.mainTexture = texture;
 
                                     newSuit.unlockableName = Path.GetFileNameWithoutExtension(texturePath);
@@ -183,13 +187,16 @@ namespace MoreSuits
                                                         Texture2D advancedTexture = new Texture2D(2, 2);
                                                         advancedTexture.LoadImage(advancedTextureData);
 
+                                                        advancedTexture.Apply(true, true);
+
                                                         newMaterial.SetTexture(keyData, advancedTexture);
                                                     }
                                                     else if (keyData == "PRICE" && int.TryParse(valueData, out int intValue)) // If the advanced json has a price, set it up so it rotates into the shop
                                                     {
                                                         try
                                                         {
-                                                            newSuit = AddToRotatingShop(newSuit, intValue, __instance.unlockablesList.unlockables.Count);
+                                                            if(!UnlockAll)
+                                                                newSuit = AddToRotatingShop(newSuit, intValue, __instance.unlockablesList.unlockables.Count);
                                                         }
                                                         catch (Exception ex)
                                                         {

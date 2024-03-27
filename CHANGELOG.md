@@ -1,3 +1,6 @@
+## v1.4.3
+- Reverted a change to how suits were sorted
+
 ## v1.4.2
 - Fixed an issue where suits took up more memory than necessary
 - Added a config option to unlock all suits, so you won't have to buy them from the store

@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.4.2";
+        private const string modVersion = "1.4.3";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -104,8 +104,11 @@ namespace MoreSuits
                                     }
                                 }
 
-                                assetPaths = assetPaths.OrderBy(Path.GetFileNameWithoutExtension).ThenBy(p => p).ToList();
-                                texturePaths = texturePaths.OrderBy(Path.GetFileNameWithoutExtension).ThenBy(p => p).ToList();
+                                assetPaths.Sort();
+                                texturePaths.Sort();
+
+                                //assetPaths = assetPaths.OrderBy(Path.GetFileNameWithoutExtension).ThenBy(p => p).ToList();
+                                //texturePaths = texturePaths.OrderBy(Path.GetFileNameWithoutExtension).ThenBy(p => p).ToList();
 
                                 try
                                 {

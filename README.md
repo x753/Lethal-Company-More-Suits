@@ -1,4 +1,4 @@
-# More Suits v1.4.1
+# More Suits
 ### Adds more suits to choose from, and can be used as a library to load your own suits!
 
 ## Instructions

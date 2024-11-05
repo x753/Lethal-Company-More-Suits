@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.4.3";
+        private const string modVersion = "1.4.4";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -170,7 +170,18 @@ namespace MoreSuits
                                     // https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@14.0/manual/Lit-Shader.html
                                     try
                                     {
-                                        string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", newSuit.unlockableName + ".json");
+                                        string advancedJsonPath;
+                                        string configJsonPath = Path.Combine(Path.GetDirectoryName(Paths.ConfigPath), "config\\suits", newSuit.unlockableName + ".json");
+                                        string defaultJsonPath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", newSuit.unlockableName + ".json");
+
+                                        if (File.Exists(configJsonPath))
+                                        {
+                                            Instance.Logger.LogInfo($"Utilizing configJsonPath [ {configJsonPath} ] for suit - {newSuit.unlockableName}!");
+                                            advancedJsonPath = configJsonPath;
+                                        }
+                                        else
+                                            advancedJsonPath = defaultJsonPath;
+
                                         if (File.Exists(advancedJsonPath))
                                         {
                                             string[] lines = File.ReadAllLines(advancedJsonPath);
@@ -198,7 +209,7 @@ namespace MoreSuits
                                                     {
                                                         try
                                                         {
-                                                            if(!UnlockAll)
+                                                            if (!UnlockAll)
                                                                 newSuit = AddToRotatingShop(newSuit, intValue, __instance.unlockablesList.unlockables.Count);
                                                         }
                                                         catch (Exception ex)
@@ -293,7 +304,7 @@ namespace MoreSuits
                 {
                     Debug.Log("Something went wrong with More Suits! Error: " + ex);
                 }
-                
+
             }
 
             [HarmonyPatch("PositionSuitsOnRack")]

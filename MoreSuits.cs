@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.4.3";
+        private const string modVersion = "1.5.0";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -30,6 +30,7 @@ namespace MoreSuits
         public static int MaxSuits;
 
         public static List<Material> customMaterials = new List<Material>();
+        public static List<AudioClip> customAudioClips = new List<AudioClip>();
 
         private void Awake()
         {
@@ -97,10 +98,12 @@ namespace MoreSuits
                                     if (suitsFolderPath != "")
                                     {
                                         string[] pngFiles = Directory.GetFiles(suitsFolderPath, "*.png");
-                                        string[] bundleFiles = Directory.GetFiles(suitsFolderPath, "*.matbundle");
+                                        string[] matBundles = Directory.GetFiles(suitsFolderPath, "*.matbundle", SearchOption.AllDirectories); // legacy bundle file extension
+                                        string[] suitBundles = Directory.GetFiles(suitsFolderPath, "*.suitbundle", SearchOption.AllDirectories);
 
                                         texturePaths.AddRange(pngFiles);
-                                        assetPaths.AddRange(bundleFiles);
+                                        assetPaths.AddRange(matBundles);
+                                        assetPaths.AddRange(suitBundles);
                                     }
                                 }
 
@@ -109,6 +112,8 @@ namespace MoreSuits
 
                                 //assetPaths = assetPaths.OrderBy(Path.GetFileNameWithoutExtension).ThenBy(p => p).ToList();
                                 //texturePaths = texturePaths.OrderBy(Path.GetFileNameWithoutExtension).ThenBy(p => p).ToList();
+
+                                Dictionary<string, AudioClip> audioClips = new Dictionary<string, AudioClip>();
 
                                 try
                                 {
@@ -123,6 +128,11 @@ namespace MoreSuits
                                             {
                                                 Material material = (Material)asset;
                                                 customMaterials.Add(material);
+                                            }
+                                            if (asset is AudioClip)
+                                            {
+                                                AudioClip audioClip = (AudioClip)asset;
+                                                customAudioClips.Add(audioClip);
                                             }
                                         }
                                     }
@@ -171,6 +181,14 @@ namespace MoreSuits
                                     try
                                     {
                                         string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", newSuit.unlockableName + ".json");
+                                        string configJsonPath = Path.Combine(Path.GetDirectoryName(Paths.ConfigPath), "config\\MoreSuitsConfig", newSuit.unlockableName + ".json");
+
+                                        if (File.Exists(configJsonPath))
+                                        {
+                                            Instance.Logger.LogInfo($"Utilizing [ {configJsonPath} ] for suit - {newSuit.unlockableName}!");
+                                            advancedJsonPath = configJsonPath;
+                                        }
+
                                         if (File.Exists(advancedJsonPath))
                                         {
                                             string[] lines = File.ReadAllLines(advancedJsonPath);
@@ -235,6 +253,17 @@ namespace MoreSuits
                                                             {
                                                                 newMaterial = Instantiate(material);
                                                                 newMaterial.mainTexture = texture;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                    else if (keyData == "AUDIOCLIP")
+                                                    {
+                                                        foreach (AudioClip audioClip in customAudioClips)
+                                                        {
+                                                            if (audioClip.name == valueData)
+                                                            {
+                                                                newSuit.jumpAudio = audioClip;
                                                                 break;
                                                             }
                                                         }

@@ -17,7 +17,7 @@ For a list of supported features, see:
 https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@14.0/manual/Lit-Shader.html
 
 ## Add Suits to Store
-Add a "PRICE" key to your advanced .json to put a suit in the store rotation. See ```Glow.json``` for an example of adding a suit with emission that must be purchased from the store.
+Add a "PRICE" key to your advanced .json to put a suit in the store rotation. See ```Glow.json``` for an example of adding a suit with emission that must be purchased from the store. If you want to set a custom price for a suit from another mod in your modpack, create a new .json in the BepInEx/config/MoreSuitsConfig folder.
 
 ## Making your own More Suits mod
-Upload your own package with a ```BepInEx/plugins/moresuits``` folder in it (do not include the MoreSuits.dll file) and add ```x753-More_Suits-1.4.0``` as a dependency, and this mod will automatically load your .png files as suits. If you don't want some or all of the suits that originally come with my mod, adjust the config file ```BepInEx\config\x753.More_Suits.cfg```. Include a ```!less-suits.txt``` file in your ```moresuits``` folder to disable all the default suits that come with this mod.
+Upload your own package with a ```BepInEx/plugins/moresuits``` folder in it (do not include the MoreSuits.dll file) and add ```x753-More_Suits-1.5.1``` as a dependency, and this mod will automatically load your .png files as suits. If you don't want some or all of the suits that originally come with my mod, adjust the config file ```BepInEx\config\x753.More_Suits.cfg```. Include a ```!less-suits.txt``` file in your ```moresuits``` folder to disable all the default suits that come with this mod.

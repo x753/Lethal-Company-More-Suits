@@ -1,0 +1,9 @@
+{
+    "name": "More_Suits",
+    "version_number": "1.5.2",
+    "website_url": "https://github.com/x753/Lethal-Company-More-Suits",
+    "description": "Adds more suits to choose from, and can be used as a library to load your own suits!",
+    "dependencies": [
+        "BepInEx-BepInExPack-5.4.2100"
+    ]
+}

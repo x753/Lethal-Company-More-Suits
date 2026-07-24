@@ -1,6 +1,8 @@
 # More Suits
 ### Adds more suits to choose from, and can be used as a library to load your own suits!
 
+Comes with 9 suits by default, most of them made by [Graelyth](https://x.com/Graelyth)
+
 ## Instructions
 Place the ```x753-More_Suits-X.X.X``` folder in your ```BepInEx/Plugins``` folder. Make sure the ```moresuits``` folder is in the same folder as ```MoreSuits.dll```.
 

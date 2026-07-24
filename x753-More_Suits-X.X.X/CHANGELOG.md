@@ -1,3 +1,9 @@
+## v1.6.0
+- 
+
+## v1.5.2
+- Credited Graelyth in the readme because who reads the CHANGELOG anyway?
+
 ## v1.5.1
 - Deleted duplicate DLL file
 

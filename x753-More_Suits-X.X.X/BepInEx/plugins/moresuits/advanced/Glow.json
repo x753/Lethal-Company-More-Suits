@@ -1,0 +1,11 @@
+{
+    "_NormalScale": "0.0",
+
+    "_EmissiveColorMap": "glow.png",
+    "_UseEmissiveIntensity": 1.0,
+    "_EmissiveIntensity": 10.0,
+    "_EmissiveColor": "1.0, 1.0, 1.0, 1.0",
+    "_EMISSIVE_COLOR_MAP": "KEYWORD",
+
+    "PRICE": "60"
+}

@@ -1,6 +1,6 @@
 {
     "name": "More_Suits",
-    "version_number": "1.5.2",
+    "version_number": "1.5.3",
     "website_url": "https://github.com/x753/Lethal-Company-More-Suits",
     "description": "Adds more suits to choose from, and can be used as a library to load your own suits!",
     "dependencies": [

@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.5.0";
+        private const string modVersion = "1.5.3";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -28,6 +28,7 @@ namespace MoreSuits
         public static bool MakeSuitsFitOnRack;
         public static bool UnlockAll;
         public static int MaxSuits;
+        public static bool AppendSuitSuffix;
 
         public static List<Material> customMaterials = new List<Material>();
         public static List<AudioClip> customAudioClips = new List<AudioClip>();
@@ -44,6 +45,7 @@ namespace MoreSuits
             MakeSuitsFitOnRack = Config.Bind("General", "Make Suits Fit on Rack", true, "If true, squishes the suits together so more can fit on the rack.").Value;
             UnlockAll = Config.Bind("General", "Unlock All Suits", false, "If true, unlocks all custom suits that would normally be sold in the shop.").Value;
             MaxSuits = Config.Bind("General", "Max Suits", 100, "The maximum number of suits to load. If you have more, some will be ignored.").Value;
+            AppendSuitSuffix = Config.Bind("General", "Append Suit Suffix", true, "If true, adds the word suit to the end of the name of every suit.").Value;
 
             harmony.PatchAll();
             Logger.LogInfo($"Plugin {modName} is loaded!");
@@ -176,11 +178,17 @@ namespace MoreSuits
 
                                     newSuit.unlockableName = Path.GetFileNameWithoutExtension(texturePath);
 
+                                    if (AppendSuitSuffix && !newSuit.unlockableName.Contains("suit", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        newSuit.unlockableName += " suit";
+                                    }
+
                                     // Optional modification of other properties like normal maps, emission, etc
                                     // https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@14.0/manual/Lit-Shader.html
                                     try
                                     {
-                                        string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", newSuit.unlockableName + ".json");
+                                        string rawName = Path.GetFileNameWithoutExtension(texturePath);
+                                        string advancedJsonPath = Path.Combine(Path.GetDirectoryName(texturePath), "advanced", rawName + ".json");
                                         string configJsonPath = Path.Combine(Path.GetDirectoryName(Paths.ConfigPath), "config\\MoreSuitsConfig", newSuit.unlockableName + ".json");
 
                                         if (File.Exists(configJsonPath))
@@ -217,7 +225,10 @@ namespace MoreSuits
                                                         try
                                                         {
                                                             if (!UnlockAll)
+                                                            {
+                                                                newSuit.alreadyUnlocked = false;
                                                                 newSuit = AddToRotatingShop(newSuit, intValue, __instance.unlockablesList.unlockables.Count);
+                                                            }
                                                         }
                                                         catch (Exception ex)
                                                         {
@@ -372,16 +383,22 @@ namespace MoreSuits
             newSuit.placedPosition = Vector3.zero;
             newSuit.placedRotation = Vector3.zero;
 
+            string suitName = newSuit.unlockableName;
+            if (AppendSuitSuffix && !newSuit.unlockableName.Contains("suit", StringComparison.OrdinalIgnoreCase))
+            {
+                suitName += " suit";
+            }
+
             newSuit.shopSelectionNode = ScriptableObject.CreateInstance<TerminalNode>();
             newSuit.shopSelectionNode.name = newSuit.unlockableName + "SuitBuy1";
-            newSuit.shopSelectionNode.creatureName = newSuit.unlockableName + " suit";
-            newSuit.shopSelectionNode.displayText = "You have requested to order " + newSuit.unlockableName + " suits.\nTotal cost of item: [totalCost].\n\nPlease CONFIRM or DENY.\n\n";
+            newSuit.shopSelectionNode.creatureName = suitName;
+            newSuit.shopSelectionNode.displayText = "You have requested to order " + suitName + "s.\nTotal cost of item: [totalCost].\n\nPlease CONFIRM or DENY.\n\n";
             newSuit.shopSelectionNode.clearPreviousText = true;
             newSuit.shopSelectionNode.shipUnlockableID = unlockableID;
             newSuit.shopSelectionNode.itemCost = price;
             newSuit.shopSelectionNode.overrideOptions = true;
 
-            CompatibleNoun confirm = new CompatibleNoun();
+            CompatibleNoun confirm = new CompatibleNoun(null, null);
             confirm.noun = ScriptableObject.CreateInstance<TerminalKeyword>();
             confirm.noun.word = "confirm";
             confirm.noun.isVerb = true;
@@ -389,14 +406,15 @@ namespace MoreSuits
             confirm.result = ScriptableObject.CreateInstance<TerminalNode>();
             confirm.result.name = newSuit.unlockableName + "SuitBuyConfirm";
             confirm.result.creatureName = "";
-            confirm.result.displayText = "Ordered " + newSuit.unlockableName + " suits! Your new balance is [playerCredits].\n\n";
+            confirm.result.displayText = "Ordered " + suitName + "s! Your new balance is [playerCredits].\n\n";
             confirm.result.clearPreviousText = true;
             confirm.result.shipUnlockableID = unlockableID;
             confirm.result.buyUnlockable = true;
             confirm.result.itemCost = price;
             confirm.result.terminalEvent = "";
+            confirm.result.playSyncedClip = 0;
 
-            CompatibleNoun deny = new CompatibleNoun();
+            CompatibleNoun deny = new CompatibleNoun(null, null);
             deny.noun = ScriptableObject.CreateInstance<TerminalKeyword>();
             deny.noun.word = "deny";
             deny.noun.isVerb = true;
@@ -413,10 +431,11 @@ namespace MoreSuits
 
             TerminalKeyword suitKeyword = ScriptableObject.CreateInstance<TerminalKeyword>();
             suitKeyword.name = newSuit.unlockableName + "Suit";
-            suitKeyword.word = newSuit.unlockableName.ToLower() + " suit";
+            suitKeyword.word = suitName.ToLower();
             suitKeyword.defaultVerb = buyKeyword;
+            suitKeyword.specialKeywordResult = newSuit.shopSelectionNode;
 
-            CompatibleNoun suitCompatibleNoun = new CompatibleNoun();
+            CompatibleNoun suitCompatibleNoun = new CompatibleNoun(null, null);
             suitCompatibleNoun.noun = suitKeyword;
             suitCompatibleNoun.result = newSuit.shopSelectionNode;
             List<CompatibleNoun> buyKeywordList = buyKeyword.compatibleNouns.ToList<CompatibleNoun>();

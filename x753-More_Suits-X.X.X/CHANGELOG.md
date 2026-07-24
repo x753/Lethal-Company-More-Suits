@@ -1,8 +1,9 @@
-## v1.6.0
-- 
+## v1.5.3
+- Added a config option to add the word "suit" to the end of every suit if it isn't already there
+- Fixed purchaseable suits being unlocked by default
 
 ## v1.5.2
-- Credited Graelyth in the readme because who reads the CHANGELOG anyway?
+- Credited Graelyth in the README because who reads the CHANGELOG anyway?
 
 ## v1.5.1
 - Deleted duplicate DLL file

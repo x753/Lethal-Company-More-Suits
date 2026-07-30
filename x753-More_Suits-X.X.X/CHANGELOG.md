@@ -1,6 +1,10 @@
+## v1.5.4
+- Turned the config option to add the word "suit" to the end of every suit if it isn't already there off by default to remain compatible with dependants
+
 ## v1.5.3
 - Added a config option to add the word "suit" to the end of every suit if it isn't already there
 - Fixed purchaseable suits being unlocked by default
+- Fixed sound effect playing when purchasing suits
 
 ## v1.5.2
 - Credited Graelyth in the README because who reads the CHANGELOG anyway?

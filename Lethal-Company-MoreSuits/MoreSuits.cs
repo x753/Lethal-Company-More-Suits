@@ -15,7 +15,7 @@ namespace MoreSuits
     {
         private const string modGUID = "x753.More_Suits";
         private const string modName = "More Suits";
-        private const string modVersion = "1.5.3";
+        private const string modVersion = "1.5.4";
 
         private readonly Harmony harmony = new Harmony(modGUID);
 
@@ -45,7 +45,7 @@ namespace MoreSuits
             MakeSuitsFitOnRack = Config.Bind("General", "Make Suits Fit on Rack", true, "If true, squishes the suits together so more can fit on the rack.").Value;
             UnlockAll = Config.Bind("General", "Unlock All Suits", false, "If true, unlocks all custom suits that would normally be sold in the shop.").Value;
             MaxSuits = Config.Bind("General", "Max Suits", 100, "The maximum number of suits to load. If you have more, some will be ignored.").Value;
-            AppendSuitSuffix = Config.Bind("General", "Append Suit Suffix", true, "If true, adds the word suit to the end of the name of every suit.").Value;
+            AppendSuitSuffix = Config.Bind("General", "Append Suit to Suit Names", false, "If true, adds the word suit to the end of the name of every suit. May break custom player model suits.").Value;
 
             harmony.PatchAll();
             Logger.LogInfo($"Plugin {modName} is loaded!");
@@ -384,7 +384,7 @@ namespace MoreSuits
             newSuit.placedRotation = Vector3.zero;
 
             string suitName = newSuit.unlockableName;
-            if (AppendSuitSuffix && !newSuit.unlockableName.Contains("suit", StringComparison.OrdinalIgnoreCase))
+            if (AppendSuitSuffix && !suitName.Contains("suit", StringComparison.OrdinalIgnoreCase))
             {
                 suitName += " suit";
             }
@@ -392,7 +392,14 @@ namespace MoreSuits
             newSuit.shopSelectionNode = ScriptableObject.CreateInstance<TerminalNode>();
             newSuit.shopSelectionNode.name = newSuit.unlockableName + "SuitBuy1";
             newSuit.shopSelectionNode.creatureName = suitName;
-            newSuit.shopSelectionNode.displayText = "You have requested to order " + suitName + "s.\nTotal cost of item: [totalCost].\n\nPlease CONFIRM or DENY.\n\n";
+            if (AppendSuitSuffix && !suitName.Contains("suit", StringComparison.OrdinalIgnoreCase))
+            {
+                newSuit.shopSelectionNode.displayText = "You have requested to order " + suitName + "s.\nTotal cost of item: [totalCost].\n\nPlease CONFIRM or DENY.\n\n";
+            }
+            else
+            {
+                newSuit.shopSelectionNode.displayText = "You have requested to order " + suitName + " suits.\nTotal cost of item: [totalCost].\n\nPlease CONFIRM or DENY.\n\n";
+            }
             newSuit.shopSelectionNode.clearPreviousText = true;
             newSuit.shopSelectionNode.shipUnlockableID = unlockableID;
             newSuit.shopSelectionNode.itemCost = price;
@@ -406,7 +413,14 @@ namespace MoreSuits
             confirm.result = ScriptableObject.CreateInstance<TerminalNode>();
             confirm.result.name = newSuit.unlockableName + "SuitBuyConfirm";
             confirm.result.creatureName = "";
-            confirm.result.displayText = "Ordered " + suitName + "s! Your new balance is [playerCredits].\n\n";
+            if (AppendSuitSuffix && !suitName.Contains("suit", StringComparison.OrdinalIgnoreCase))
+            {
+                confirm.result.displayText = "Ordered " + suitName + "s! Your new balance is [playerCredits].\n\n";
+            }
+            else
+            {
+                confirm.result.displayText = "Ordered " + suitName + " suits! Your new balance is [playerCredits].\n\n";
+            }
             confirm.result.clearPreviousText = true;
             confirm.result.shipUnlockableID = unlockableID;
             confirm.result.buyUnlockable = true;
